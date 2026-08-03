@@ -1,6 +1,6 @@
 # pi-modes — Mode switching for pi
 
-Four agent modes inspired by Claude Code.
+Five agent modes inspired by Claude Code.
 
 ## Modes
 
@@ -9,18 +9,20 @@ Four agent modes inspired by Claude Code.
 | **Auto** | 🔄 | Smart: simple tasks → do it; complex → plan first | All |
 | **Plan** | 📋 | Read-only analysis, creates numbered plans | Read + bash (safe only) |
 | **Edit** | ✏️ | Full access, no planning | All |
+| **Manual** | 👆 | Full tools, confirms EACH tool call | All (with confirm) |
 | **Ask** | 💬 | Pure Q&A, answers without tools | None |
 
 ## Commands
 
 | Command | Shortcut | Description |
 |---------|----------|-------------|
-| `/mode` | `Ctrl+Alt+M` | Cycle: auto → plan → edit → ask |
+| `/mode` | `Ctrl+Alt+M` | Cycle: auto → plan → edit → manual → ask |
 | `/mode auto` | — | Switch to Auto |
 | `/mode plan` | — | Switch to Plan |
 | `/mode edit` | — | Switch to Edit |
+| `/mode manual` | — | Switch to Manual |
 | `/mode ask` | — | Switch to Ask |
-| `/auto` `/plan` `/edit` `/ask` | — | Convenience sub-commands |
+| `/auto` `/plan` `/edit` `/manual` `/ask` | — | Convenience sub-commands |
 
 ## How it works
 
@@ -43,7 +45,11 @@ Four agent modes inspired by Claude Code.
 2. No planning overhead
 3. Agent jumps straight into action
 
-### Ask mode
+### Manual mode
+1. All tools available
+2. Before EACH tool call → confirm dialog appears
+3. Options: Allow once / Always in this session / Block
+4. Allowlist resets on mode switch
 1. All tool calls blocked
 2. Agent answers from knowledge only
 3. Fast, no tool overhead

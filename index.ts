@@ -1,16 +1,17 @@
 /**
  * pi-modes — Claude Code-style mode switching
  *
- * Four modes:
- *   Auto  — Agent decides: simple tasks → do it; complex → plan first, then execute
- *   Plan  — Read-only analysis. Write tools disabled, bash restricted.
- *   Edit  — Full access. No planning phase.
- *   Ask   — No tool calls. Pure Q&A.
+ * Five modes:
+ *   Auto   — Agent decides: simple tasks → do it; complex → plan first, then execute
+ *   Plan   — Read-only analysis. Write tools disabled, bash restricted.
+ *   Edit   — Full access. No planning phase.
+ *   Manual — Full tools, but confirms before EACH tool call
+ *   Ask    — No tool calls. Pure Q&A.
  *
  * Commands:
- *   /mode [auto|plan|edit|ask]  — switch or show current
- *   Ctrl+Alt+M                   — cycle modes
- *   --mode <name>                — CLI flag
+ *   /mode [auto|plan|edit|manual|ask]  — switch or show current
+ *   Ctrl+Alt+M                           — cycle modes
+ *   --mode <name>                        — CLI flag
  */
 
 import type { AgentMessage } from "@earendil-works/pi-agent-core";
@@ -20,8 +21,8 @@ import { Key } from "@earendil-works/pi-tui";
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
-type AgentMode = "auto" | "plan" | "edit" | "ask";
-const MODES: AgentMode[] = ["auto", "plan", "edit", "ask"];
+type AgentMode = "auto" | "plan" | "edit" | "manual" | "ask";
+const MODES: AgentMode[] = ["auto", "plan", "edit", "manual", "ask"];
 
 interface ModeState {
   mode: AgentMode;
@@ -52,6 +53,9 @@ let state: ModeState = {
 
 let _pi: ExtensionAPI;
 const MAX_FAILURES = 3;
+
+// Session allowlist for manual mode
+const manualAllowed: Set<string> = new Set();
 
 // ─── Tool sets ──────────────────────────────────────────────────────────────
 
@@ -167,6 +171,7 @@ function modeColor(mode: AgentMode): string {
     case "auto": return "\x1b[36m";   // cyan
     case "plan": return "\x1b[33m";   // yellow
     case "edit": return "\x1b[35m";   // magenta
+    case "manual": return "\x1b[34m"; // blue
     case "ask":  return "\x1b[2m";    // dim
   }
 }
@@ -176,6 +181,7 @@ function modeIcon(mode: AgentMode): string {
     case "auto": return "🔄";
     case "plan": return "📋";
     case "edit": return "✏️";
+    case "manual": return "👆";
     case "ask":  return "💬";
   }
 }
@@ -185,6 +191,7 @@ function modeLabel(mode: AgentMode): string {
     case "auto": return "Auto";
     case "plan": return "Plan";
     case "edit": return "Edit";
+    case "manual": return "Manual";
     case "ask":  return "Ask";
   }
 }
@@ -241,6 +248,9 @@ function switchMode(newMode: AgentMode, ctx: ExtensionContext): void {
     state.failureCount = 0;
   }
 
+  // Clear manual session allowlist on mode switch
+  manualAllowed.clear();
+
   // Apply tool restrictions
   restoreTools();
   if (newMode === "plan" || newMode === "ask") {
@@ -251,7 +261,7 @@ function switchMode(newMode: AgentMode, ctx: ExtensionContext): void {
   persist();
 
   ctx.ui.notify(
-    `Mode: ${modeLabel(prev)} → ${modeLabel(newMode)}${newMode === "plan" ? " (read-only)" : newMode === "ask" ? " (no tools)" : ""}`,
+    `Mode: ${modeLabel(prev)} → ${modeLabel(newMode)}${newMode === "plan" ? " (read-only)" : newMode === "ask" ? " (no tools)" : newMode === "manual" ? " (confirm each step)" : ""}`,
     "info",
   );
 }
@@ -304,6 +314,24 @@ Next: step ${first?.step ?? "?"} — ${first?.text ?? "continue"}`;
   }
   return `[MODE: EDIT — Full Access]
 All tools available. No planning required. Just do it.`;
+}
+
+function getManualContext(): string {
+  if (state.executing && state.planSteps.length > 0) {
+    const remaining = state.planSteps.filter((s) => !s.completed);
+    const list = remaining.map((s) => `${s.step}. ${s.text}`).join("\n");
+    return `[MODE: MANUAL — Step-by-Step Confirmation]
+You have full tools available, but the user will confirm EACH action before it runs.
+
+Be explicit about what you intend to do and why.
+
+Remaining plan steps:
+${list}`;
+  }
+  return `[MODE: MANUAL — Step-by-Step Confirmation]
+You have full tools available, but the user will confirm EACH action before it runs.
+
+Describe each action clearly: what you will do and why.`;
 }
 
 // ─── Extension ──────────────────────────────────────────────────────────────
@@ -391,8 +419,47 @@ export default function modesExtension(pi: ExtensionAPI): void {
     if (state.mode !== "ask") return;
     return {
       block: true,
-      reason: `[Ask mode] No tool calls allowed. Switch to Auto/Edit mode to use tools.`,
+      reason: `[Ask mode] No tool calls allowed. Switch to Auto/Edit/Manual mode to use tools.`,
     };
+  });
+
+  // ── Manual mode: confirm every tool call ────────────────────────────
+
+  pi.on("tool_call", async (event, ctx) => {
+    if (state.mode !== "manual") return;
+    if (!ctx.hasUI) {
+      return { block: true, reason: `[Manual mode] No UI for confirmation.` };
+    }
+
+    const toolName = event.toolName;
+    const args = event.input;
+
+    // Build a short summary for confirm + allowlist key
+    let summary: string;
+    if (toolName === "bash") {
+      const cmd = (args as { command?: string }).command ?? "?";
+      summary = `bash: ${cmd.slice(0, 80)}`;
+    } else if (toolName === "write" || toolName === "edit" || toolName === "read") {
+      const path = (args as { path?: string }).path ?? "?";
+      summary = `${toolName}: ${path}`;
+    } else {
+      summary = `${toolName}: ${JSON.stringify(args).slice(0, 80)}`;
+    }
+
+    // Check session allowlist
+    if (manualAllowed.has(summary)) return;
+
+    const choice = await ctx.ui.select(
+      `👆 Manual mode — Allow ${toolName}?\n\n  ${summary}\n`,
+      ["Yes (allow once)", "Always in this session", "No (block)"],
+    );
+
+    if (choice === "Yes (allow once)") return;
+    if (choice === "Always in this session") {
+      manualAllowed.add(summary);
+      return;
+    }
+    return { block: true, reason: `[Manual mode] User declined: ${toolName}` };
   });
 
   // ── Context injection per mode ────────────────────────────────────────
@@ -400,10 +467,11 @@ export default function modesExtension(pi: ExtensionAPI): void {
   pi.on("before_agent_start", async () => {
     let context: string;
     switch (state.mode) {
-      case "auto":  context = getAutoContext(); break;
-      case "plan":  context = getPlanContext(); break;
-      case "edit":  context = getEditContext(); break;
-      case "ask":   return; // no injection needed
+      case "auto":   context = getAutoContext(); break;
+      case "plan":   context = getPlanContext(); break;
+      case "edit":   context = getEditContext(); break;
+      case "manual": context = getManualContext(); break;
+      case "ask":    return; // no injection needed
     }
     return {
       message: {
