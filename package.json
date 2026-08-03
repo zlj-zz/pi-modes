@@ -1,0 +1,16 @@
+{
+  "name": "pi-modes",
+  "version": "0.1.0",
+  "description": "Claude Code-style mode switching for pi — Auto / Plan / Edit / Ask with intelligent context injection",
+  "keywords": ["pi-package", "pi", "mode", "plan", "edit", "auto"],
+  "license": "MIT",
+  "pi": {
+    "extensions": ["./index.ts"]
+  },
+  "peerDependencies": {
+    "@earendil-works/pi-coding-agent": "*",
+    "@earendil-works/pi-tui": "*",
+    "@earendil-works/pi-agent-core": "*",
+    "@earendil-works/pi-ai": "*"
+  }
+}
