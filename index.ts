@@ -202,7 +202,9 @@ function updateUI(ctx: ExtensionContext): void {
   const hasPlan = state.planSteps.length > 0 && state.executing;
   const dim = "\x1b[2m";
   const rst = "\x1b[0m";
-  const status = `${modeColor(m)}${modeIcon(m)} ${modeLabel(m)}${rst}`;
+  const bold = "\x1b[1m";
+  const nobold = "\x1b[22m";
+  const status = `${bold}${modeColor(m)}${modeIcon(m)}${nobold} ${modeLabel(m)}${rst}`;
 
   // Footer status
   if (hasPlan) {
