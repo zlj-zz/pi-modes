@@ -465,6 +465,14 @@ export default function modesExtension(pi: ExtensionAPI): void {
   // ── Context injection per mode ────────────────────────────────────────
 
   pi.on("before_agent_start", async () => {
+    // Plan mode: if user sends message while plan is pending, auto-switch to edit
+    if (state.mode === "plan" && state.planSteps.length > 0 && !state.executing) {
+      state.mode = "edit";
+      state.executing = true;
+      state.failureCount = 0;
+      restoreTools();
+    }
+
     let context: string;
     switch (state.mode) {
       case "auto":   context = getAutoContext(); break;
