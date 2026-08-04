@@ -44,7 +44,7 @@ interface PlanStep {
 // ─── State ──────────────────────────────────────────────────────────────────
 
 let state: ModeState = {
-  mode: "auto",
+  mode: "manual",
   planSteps: [],
   executing: false,
   failureCount: 0,
