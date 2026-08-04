@@ -210,9 +210,9 @@ function updateUI(ctx: ExtensionContext): void {
   if (hasPlan) {
     const done = state.planSteps.filter((s) => s.completed).length;
     const total = state.planSteps.length;
-    ctx.ui.setStatus("modes", `${status} ${dim}[${done}/${total}] ${bold}Ctrl+Alt+M${nobold}${rst}`);
+    ctx.ui.setStatus("modes", `${status} ${dim}[${done}/${total}]${rst}`);
   } else {
-    ctx.ui.setStatus("modes", `${status}  ${dim}Ctrl+Alt+M→${rst}`);
+    ctx.ui.setStatus("modes", `${status}  ${dim}(Ctrl+Alt+M→ to cycle)${rst}`);
   }
 
   // Widget: plan steps
