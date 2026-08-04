@@ -6,11 +6,11 @@ Five agent modes inspired by Claude Code.
 
 | Mode | Icon | Behavior | Tools |
 |------|------|----------|-------|
-| **Manual** | 👆 | Full tools, confirms EACH tool call | All (with confirm) |
-| **Edit** | ✏️ | Full access, no planning | All |
-| **Plan** | 📋 | Read-only analysis, creates numbered plans | Read + bash (safe only) |
-| **Auto** | 🔄 | Smart: simple tasks → do it; complex → plan first | All |
-| **Ask** | 💬 | Pure Q&A, answers without tools | None |
+| **Manual** | ⊘ | Full tools, confirms EACH tool call | All (with confirm) |
+| **Edit** | ✎ | Full access, no planning | All |
+| **Plan** | ☷ | Read-only analysis, creates numbered plans | Read + bash (safe only) |
+| **Auto** | ↻ | Smart: simple tasks → do it; complex → plan first | All |
+| **Ask** | ? | Pure Q&A, answers without tools | None |
 
 ## Commands
 

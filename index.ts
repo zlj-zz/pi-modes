@@ -178,11 +178,11 @@ function modeColor(mode: AgentMode): string {
 
 function modeIcon(mode: AgentMode): string {
   switch (mode) {
-    case "auto": return "🔄";
-    case "plan": return "📋";
-    case "edit": return "✏️";
-    case "manual": return "👆";
-    case "ask":  return "💬";
+    case "manual": return "⊘";
+    case "edit":   return "✎";
+    case "plan":   return "☷";
+    case "auto":   return "↻";
+    case "ask":    return "?";
   }
 }
 
@@ -200,17 +200,17 @@ function updateUI(ctx: ExtensionContext): void {
   const theme = ctx.ui.theme;
   const m = state.mode;
   const hasPlan = state.planSteps.length > 0 && state.executing;
+  const dim = "\x1b[2m";
+  const rst = "\x1b[0m";
+  const status = `${modeColor(m)}${modeIcon(m)} ${modeLabel(m)}${rst}`;
 
   // Footer status
   if (hasPlan) {
     const done = state.planSteps.filter((s) => s.completed).length;
     const total = state.planSteps.length;
-    ctx.ui.setStatus("modes", theme.fg("accent", `${modeIcon(m)} ${modeLabel(m)} [${done}/${total}]`));
+    ctx.ui.setStatus("modes", `${status} ${dim}[${done}/${total}]${rst}`);
   } else {
-    ctx.ui.setStatus("modes", theme.fg(
-      m === "auto" ? "accent" : m === "plan" ? "warning" : m === "edit" ? "accent" : "dim",
-      `${modeIcon(m)} ${modeLabel(m)}`
-    ));
+    ctx.ui.setStatus("modes", status);
   }
 
   // Widget: plan steps
