@@ -279,7 +279,7 @@ function getAutoContext(): string {
 You decide the approach based on task complexity:
 
 - SIMPLE (single file edit, quick fix) → Just do it directly. No planning needed.
-- COMPLEX (multi-step, multiple files) → First create a numbered plan under "Plan:" header, then wait for confirmation.
+- COMPLEX (multi-step, multiple files) → First create a numbered plan under "Plan:" header, then IMMEDIATELY execute it step by step. Mark each with [DONE:n]. Do NOT wait for confirmation — just go ahead.
 - QUESTION (pure knowledge, no code changes) → Answer directly without tools when possible.
 
 Current capabilities: ${_pi.getActiveTools().join(", ") || "none"}`;
@@ -522,38 +522,22 @@ export default function modesExtension(pi: ExtensionAPI): void {
           persist();
 
           if (state.mode === "auto") {
-            const choice = await ctx.ui.select("Plan detected — execute?", [
-              "Execute (switch to Edit)",
-              "Stay in Auto",
-              "Refine the plan",
-            ]);
+            // Auto-execute immediately, no confirmation
+            state.executing = true;
+            updateUI(ctx);
+            persist();
 
-            if (choice === "Execute (switch to Edit)") {
-              state.executing = true;
-              state.mode = "edit"; // Actually let's keep it as auto so tools stay
-              // Wait, in edit mode tools are already available. Let's just set executing.
-              // Actually the mode IS already auto and tools are available.
-              // Just set executing flag.
-              updateUI(ctx);
-              persist();
-
-              const remaining = state.planSteps.filter((s) => !s.completed);
-              const list = remaining.map((s) => `${s.step}. ${s.text}`).join("\n");
-              const first = remaining[0];
-              pi.sendUserMessage(
-                `Execute the plan steps. Mark each with [DONE:n].
-
-${list}
-
-Start with step ${first?.step}: ${first?.text}`,
-                { deliverAs: "followUp" },
-              );
-            } else if (choice === "Refine the plan") {
-              const refinement = await ctx.ui.editor("Refine the plan:", "");
-              if (refinement?.trim()) {
-                pi.sendUserMessage(refinement.trim(), { deliverAs: "followUp" });
-              }
-            }
+            const remaining = state.planSteps.filter((s) => !s.completed);
+            const list = remaining.map((s) => `${s.step}. ${s.text}`).join("\n");
+            const first = remaining[0];
+            pi.sendMessage(
+              { customType: "modes-plan-summary", content: `**Plan (${steps.length} steps)** — auto-executing...`, display: true },
+              { triggerTurn: false },
+            );
+            pi.sendUserMessage(
+              `Execute the plan steps. Mark each with [DONE:n].\n\n${list}\n\nStart with step ${first?.step}: ${first?.text}`,
+              { deliverAs: "followUp" },
+            );
           } else {
             // Plan mode: same prompt but keep plan mode
             const stepsText = steps.map((s) => `${s.step}. ☐ ${s.text}`).join("\n");
