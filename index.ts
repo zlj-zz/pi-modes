@@ -22,7 +22,7 @@ import { Key } from "@earendil-works/pi-tui";
 // ─── Types ──────────────────────────────────────────────────────────────────
 
 type AgentMode = "auto" | "plan" | "edit" | "manual" | "ask";
-const MODES: AgentMode[] = ["auto", "plan", "edit", "manual", "ask"];
+const MODES: AgentMode[] = ["manual", "edit", "plan", "auto", "ask"];
 
 interface ModeState {
   mode: AgentMode;
