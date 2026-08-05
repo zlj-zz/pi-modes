@@ -396,6 +396,8 @@ export default function modesExtension(pi: ExtensionAPI): void {
 
   pi.on("tool_call", async (event, ctx) => {
     if (state.mode !== "plan") return;
+    // Non-interactive (subagent, json mode): skip restrictions
+    if (!ctx.hasUI) return;
 
     if (event.toolName === "edit" || event.toolName === "write") {
       return {
@@ -430,7 +432,8 @@ export default function modesExtension(pi: ExtensionAPI): void {
   pi.on("tool_call", async (event, ctx) => {
     if (state.mode !== "manual") return;
     if (!ctx.hasUI) {
-      return { block: true, reason: `[Manual mode] No UI for confirmation.` };
+      // Non-interactive (subagent, json mode, -p): inherit parent's trust, allow
+      return;
     }
 
     const toolName = event.toolName;
