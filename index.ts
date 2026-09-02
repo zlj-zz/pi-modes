@@ -111,11 +111,13 @@ function restrictTools(): void {
   if (state.mode === "ask") {
     _pi.setActiveTools([]);
   } else if (state.mode === "plan") {
-    // Keep read-only tools + non-destructive
+    // Keep read-only tools + non-destructive, plus questionnaire for clarifying questions
+    const hasQuestionnaire = _pi.getAllTools().some((t) => t.name === "questionnaire");
     _pi.setActiveTools(
       [...new Set([
         ...current.filter((t) => t !== "edit" && t !== "write"),
         "read", "grep", "find", "ls",
+        ...(hasQuestionnaire ? ["questionnaire"] : []),
       ])]
     );
   }
@@ -312,8 +314,9 @@ Bash is restricted to read-only commands (cat, grep, ls, find, git status/log/di
 
 Your job:
 1. Analyze the codebase thoroughly
-2. Create a detailed numbered plan under "Plan:" header
-3. The user will switch to Edit mode for execution`;
+2. Ask clarifying questions with the questionnaire tool when requirements are ambiguous
+3. Create a detailed numbered plan under "Plan:" header
+4. The user will switch to Edit mode for execution`;
 }
 
 function getEditContext(): string {
@@ -570,12 +573,50 @@ export default function modesExtension(pi: ExtensionAPI): void {
               { deliverAs: "followUp" },
             );
           } else {
-            // Plan mode: same prompt but keep plan mode
+            // Plan mode: show plan, then offer execute / refine / stay
             const stepsText = steps.map((s) => `${s.step}. ☐ ${s.text}`).join("\n");
             pi.sendMessage(
-              { customType: "modes-plan-summary", content: `**Plan (${steps.length} steps)**\n\n${stepsText}\n\n_Use /mode edit to execute_`, display: true },
+              { customType: "modes-plan-summary", content: `**Plan (${steps.length} steps)**\n\n${stepsText}`, display: true },
               { triggerTurn: false },
             );
+
+            const choice = await ctx.ui.select(`📋 Plan ready (${steps.length} steps) — what next?`, [
+              "Execute the plan",
+              "Refine the plan",
+              "Stay in plan mode",
+            ]);
+
+            if (choice === "Execute the plan") {
+              state.mode = "edit";
+              state.executing = true;
+              state.failureCount = 0;
+              restoreTools();
+              updateUI(ctx);
+              persist();
+
+              const remaining = state.planSteps.filter((s) => !s.completed);
+              const list = remaining.map((s) => `${s.step}. ${s.text}`).join("\n");
+              const first = remaining[0];
+              pi.sendUserMessage(
+                `Execute the plan steps. Mark each with [DONE:n].\n\n${list}\n\nStart with step ${first?.step}: ${first?.text}`,
+                { deliverAs: "followUp" },
+              );
+            } else if (choice === "Refine the plan") {
+              const currentPlan = state.planSteps.map((s) => `${s.step}. ${s.text}`).join("\n");
+              const refinement = await ctx.ui.editor("Refine the plan:", currentPlan);
+              if (refinement?.trim()) {
+                // Clear pending plan so the auto-switch (plan→edit) doesn't hijack the refinement turn
+                state.planSteps = [];
+                state.executing = false;
+                updateUI(ctx);
+                persist();
+                pi.sendUserMessage(
+                  `Here's my refined plan — analyze it and create an updated numbered plan under a "Plan:" header:\n\n${refinement.trim()}`,
+                  { deliverAs: "followUp" },
+                );
+              }
+            }
+            // "Stay in plan mode" → nothing; plan stays pending
           }
         }
       }

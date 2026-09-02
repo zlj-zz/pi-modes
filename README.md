@@ -31,14 +31,16 @@ Five agent modes inspired by Claude Code.
 2. Agent decides:
    - Simple? → Just do it
    - Complex? → Creates a numbered plan under "Plan:" header
-3. If plan detected → prompt: "Execute?"
+3. The agent outputs a numbered plan under `Plan:` header and prompts: **Execute / Refine / Stay**
 4. Confirmed → agent executes with `[DONE:n]` tracking
 
 ### Plan mode
 1. All write/edit tools disabled
-2. Bash restricted to read-only commands
-3. Agent analyzes and creates a plan
-4. User switches to Edit mode to execute
+2. Bash restricted to read-only commands; `questionnaire` tool added for clarifying questions (if installed)
+3. Agent analyzes and creates a plan, then prompts:
+   - **Execute the plan** → switches to Edit mode and starts execution
+   - **Refine the plan** → opens editor to adjust steps, agent re-plans
+   - **Stay in plan mode** → plan stays pending
 
 ### Edit mode
 1. Full tools available
