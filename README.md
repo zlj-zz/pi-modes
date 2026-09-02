@@ -67,3 +67,39 @@ Or from local:
 ```bash
 pi install ../pi-modes
 ```
+
+## Safety Guard (built-in)
+
+pi-modes ships with the danger guard formerly published as `pi-danger-guard` — an always-on safety net that works alongside the modes:
+
+| Level | Bash | File |
+|-------|------|------|
+| **warn** | ⚡ Notify but allow | ⚡ Notify but allow |
+| **confirm** | ⚠️ Prompt for confirmation | ⚠️ Prompt for confirmation |
+| **block** | 🚫 Block immediately | 🚫 Block immediately |
+
+- **Block**: `rm -rf /`, raw disk writes, format filesystems, fork bombs, `.env*`, SSH keys, credentials files
+- **Confirm**: `rm`, `sudo`, `chmod 777`, `git push --force`, `git reset --hard`, `curl | sh`, `kill`, lock files, `.git/`
+- **Warn**: `npm install`, `pip install`, `brew install`, `git rebase`
+
+### Mode integration
+
+- **manual** — confirm prompts skipped (pi-modes already confirms every tool call); block/warn still apply
+- **plan** — no prompts (plan mode already blocks edit/write and destructive bash); block still applies
+- **auto / edit / ask** — full guard behavior
+
+### Config
+
+Override defaults with `~/.config/agent-hud/danger-guard.jsonc` (path kept for backward compatibility with `pi-danger-guard`):
+
+```jsonc
+{
+  "sessionAllowlist": true,
+  "bashRules": [
+    // add custom rules
+  ],
+  "protectedPaths": [
+    // add custom paths
+  ]
+}
+```

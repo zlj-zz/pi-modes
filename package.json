@@ -1,8 +1,8 @@
 {
   "name": "pi-modes",
-  "version": "0.1.0",
-  "description": "Claude Code-style mode switching for pi — Auto / Plan / Edit / Ask with intelligent context injection",
-  "keywords": ["pi-package", "pi", "mode", "plan", "edit", "auto"],
+  "version": "0.2.0",
+  "description": "Claude Code-style mode switching for pi — Auto / Plan / Edit / Ask with intelligent context injection + built-in danger guard",
+  "keywords": ["pi-package", "pi", "mode", "plan", "edit", "auto", "security", "guard", "permission"],
   "license": "MIT",
   "pi": {
     "extensions": ["./index.ts"]

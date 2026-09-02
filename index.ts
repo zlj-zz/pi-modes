@@ -18,10 +18,11 @@ import type { AgentMessage } from "@earendil-works/pi-agent-core";
 import type { AssistantMessage, TextContent } from "@earendil-works/pi-ai";
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { Key } from "@earendil-works/pi-tui";
+import { initDangerGuard } from "./danger.ts";
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
-type AgentMode = "auto" | "plan" | "edit" | "manual" | "ask";
+export type AgentMode = "auto" | "plan" | "edit" | "manual" | "ask";
 const MODES: AgentMode[] = ["manual", "edit", "plan", "auto", "ask"];
 
 interface ModeState {
@@ -721,4 +722,11 @@ export default function modesExtension(pi: ExtensionAPI): void {
 
     updateUI(ctx);
   });
+
+  // ── Danger guard (merged from pi-danger-guard) ─────────────────────
+  // Registered last so mode handlers (plan/ask/manual) short-circuit first:
+  // - plan mode blocks destructive bash + all write/edit before we run
+  // - manual mode "decline" blocks before we run; on "allow" we skip our
+  //   own confirm prompt (no double prompt)
+  initDangerGuard(pi, () => state.mode);
 }
