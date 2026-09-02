@@ -66,15 +66,21 @@ const ALL_TOOL_NAMES = ["read", "bash", "edit", "write", "grep", "find", "ls"];
 
 const DESTRUCTIVE = [
   /\brm\b/i, /\brmdir\b/i, /\bmv\b/i, /\bcp\b/i, /\bmkdir\b/i, /\btouch\b/i,
-  /\bchmod\b/i, /\bchown\b/i, /\bln\b/i, /\btee\b/i, /\btruncate\b/i, /\bdd\b/i,
+  /\bchmod\b/i, /\bchown\b/i, /\bchgrp\b/i, /\bln\b/i, /\btee\b/i, /\btruncate\b/i,
+  /\bdd\b/i, /\bshred\b/i,
   /(^|[^<])>(?!>)/, />>/,
-  /\bnpm\s+(install|uninstall|ci|publish|deprecate)/i,
-  /\byarn\s+(add|remove|publish)/i,
-  /\bpnpm\s+(add|remove)/i,
+  /\bnpm\s+(install|uninstall|ci|link|update|publish|deprecate)/i,
+  /\byarn\s+(add|remove|install|publish)/i,
+  /\bpnpm\s+(add|remove|install|publish)/i,
   /\bpip\s+(install|uninstall)/i,
+  /\bapt(-get)?\s+(install|remove|purge|update|upgrade)/i,
   /\bbrew\s+(install|uninstall|upgrade)/i,
-  /\bgit\s+(add|commit|push|pull|merge|rebase|reset|checkout|stash|cherry-pick|revert|tag|clone)/i,
-  /\bsudo\b/i, /\bkill\b/i, /\bpkill\b/i,
+  /\bgit\s+(add|commit|push|pull|merge|rebase|reset|checkout|branch\s+-[dD]|stash|cherry-pick|revert|tag|init|clone)/i,
+  /\bsudo\b/i, /\bsu\b/i, /\bkill\b/i, /\bpkill\b/i, /\bkillall\b/i,
+  /\breboot\b/i, /\bshutdown\b/i,
+  /\bsystemctl\s+(start|stop|restart|enable|disable)/i,
+  /\bservice\s+\S+\s+(start|stop|restart)/i,
+  /\b(vim?|nano|emacs|code|subl)\b/i,
   /\bcurl\s+.*\|(ba)?sh/, /\bwget\s+.*\|(ba)?sh/,
 ];
 
@@ -82,9 +88,10 @@ const SAFE_CMDS = [
   /^(cat|head|tail|less|more)\b/, /^(grep|rg|find|fd|ls|pwd|echo|printf)\b/,
   /^(wc|sort|uniq|diff|file|stat|du|df|tree)\b/,
   /^(which|whereis|type|env|printenv|uname|whoami|id|date)\b/,
-  /^(uptime|ps|top|htop|free)\b/,
+  /^(uptime|ps|top|htop|free|cal)\b/,
   /^git\s+(status|log|diff|show|branch|remote|config\s+--get|ls-)/i,
   /^npm\s+(list|ls|view|info|outdated|audit)/i,
+  /^yarn\s+(list|info|why|audit)/i,
   /^node\s+--version/i, /^python\s+--version/i,
   /^curl\s/i, /^wget\s+-O\s*-/i,
   /^(jq|sed\s+-n|awk|bat|eza)\b/,
@@ -123,6 +130,22 @@ function restoreTools(): void {
 
 // ─── Plan step extraction ──────────────────────────────────────────────────
 
+function cleanStepText(text: string): string {
+  let cleaned = text
+    .replace(/\*{1,2}([^*]+)\*{1,2}/g, "$1") // Remove bold/italic
+    .replace(/`([^`]+)`/g, "$1") // Remove inline code
+    .replace(
+      /^(Use|Run|Execute|Create|Write|Read|Check|Verify|Update|Modify|Add|Remove|Delete|Install)\s+(the\s+)?/i,
+      "",
+    )
+    .replace(/\s+/g, " ")
+    .trim();
+
+  if (cleaned.length > 0) cleaned = cleaned.charAt(0).toUpperCase() + cleaned.slice(1);
+  if (cleaned.length > 50) cleaned = `${cleaned.slice(0, 47)}...`;
+  return cleaned;
+}
+
 function extractSteps(text: string): PlanStep[] {
   const items: PlanStep[] = [];
   const m = text.match(/\*{0,2}Plan:\*{0,2}\s*\n/i);
@@ -130,13 +153,12 @@ function extractSteps(text: string): PlanStep[] {
 
   const section = text.slice(text.indexOf(m[0]) + m[0].length);
   for (const match of section.matchAll(/^\s*(\d+)[.)]\s+\*{0,2}([^*\n]+)/gm)) {
-    let t = match[2].trim().replace(/\*{1,2}$/, "").trim();
-    t = t.replace(/^(Use|Run|Execute|Create|Write|Read|Check|Verify|Update|Modify|Add|Remove|Delete|Install)\s+(the\s+)?/i, "");
-    t = t.trim();
-    if (t.length < 3) continue;
-    t = t.charAt(0).toUpperCase() + t.slice(1);
-    if (t.length > 50) t = t.slice(0, 47) + "...";
-    items.push({ step: items.length + 1, text: t, completed: false });
+    const raw = match[2].trim().replace(/\*{1,2}$/, "").trim();
+    // Skip items that are unlikely to be plan steps (code refs, commands, bullets)
+    if (raw.length <= 5 || raw.startsWith("`") || raw.startsWith("/") || raw.startsWith("-")) continue;
+    const cleaned = cleanStepText(raw);
+    if (cleaned.length < 3) continue;
+    items.push({ step: items.length + 1, text: cleaned, completed: false });
   }
   return items;
 }
@@ -166,13 +188,13 @@ function persist(): void {
 
 // ─── UI ─────────────────────────────────────────────────────────────────────
 
-function modeColor(mode: AgentMode): string {
+function modeThemeColor(mode: AgentMode) {
   switch (mode) {
-    case "auto": return "\x1b[36m";   // cyan
-    case "plan": return "\x1b[33m";   // yellow
-    case "edit": return "\x1b[35m";   // magenta
-    case "manual": return "\x1b[34m"; // blue
-    case "ask":  return "\x1b[2m";    // dim
+    case "auto": return "accent";
+    case "plan": return "warning";
+    case "edit": return "success";
+    case "manual": return "text";
+    case "ask":  return "dim";
   }
 }
 
@@ -200,19 +222,15 @@ function updateUI(ctx: ExtensionContext): void {
   const theme = ctx.ui.theme;
   const m = state.mode;
   const hasPlan = state.planSteps.length > 0 && state.executing;
-  const dim = "\x1b[2m";
-  const rst = "\x1b[0m";
-  const bold = "\x1b[1m";
-  const nobold = "\x1b[22m";
-  const status = `${bold}${modeColor(m)}${modeIcon(m)}${nobold} ${modeLabel(m)}${rst}`;
+  const status = theme.fg(modeThemeColor(m), `${modeIcon(m)} ${modeLabel(m)}`);
 
   // Footer status
   if (hasPlan) {
     const done = state.planSteps.filter((s) => s.completed).length;
     const total = state.planSteps.length;
-    ctx.ui.setStatus("modes", `${status} ${dim}[${done}/${total}]${rst}`);
+    ctx.ui.setStatus("modes", `${status} ${theme.fg("dim", `[${done}/${total}]`)}`);
   } else {
-    ctx.ui.setStatus("modes", `${status}  ${dim}(Ctrl+Alt+M→ to cycle)${rst}`);
+    ctx.ui.setStatus("modes", `${status}  ${theme.fg("dim", "(Ctrl+Alt+M→ to cycle)")}`);
   }
 
   // Widget: plan steps
@@ -634,9 +652,20 @@ export default function modesExtension(pi: ExtensionAPI): void {
       state.failureCount = d.failureCount ?? state.failureCount;
       state.lastError = d.lastError ?? state.lastError;
 
-      // Re-scan for DONE markers
+      // Re-scan for DONE markers — only messages after the current plan was created,
+      // so [DONE:n] markers from earlier plans don't leak into this one.
       if (state.executing && state.planSteps.length > 0) {
+        let markerIndex = -1;
+        for (let i = entries.length - 1; i >= 0; i--) {
+          const entry = entries[i] as { type: string; customType?: string };
+          if (entry.type === "custom" && entry.customType === "modes-plan-summary") {
+            markerIndex = i;
+            break;
+          }
+        }
+
         const msgs = entries
+          .slice(markerIndex + 1)
           .filter((e) => e.type === "message" && "message" in e)
           .map((e) => (e as { message: AgentMessage }).message)
           .filter((m) => m.role === "assistant" && Array.isArray(m.content));
