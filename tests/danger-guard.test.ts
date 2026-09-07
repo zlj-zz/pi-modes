@@ -1,6 +1,6 @@
 // Agent-file protection checks for danger.ts — run: npm test
 import { strict as assert } from "node:assert";
-import { agentFileThreat, killDecision } from "../danger.ts";
+import { agentFileThreat, killDecision, stripHeredocs } from "../danger.ts";
 
 const cwd = "/repo";
 const files = new Set(["/repo/src/a.ts", "/repo/newfile.txt", "/repo/my file.ts"]);
@@ -84,5 +84,11 @@ assert.match(agentFileThreat("env FOO=1 rm src/a.ts", cwd, files)!, /a\.ts/);
 assert.match(agentFileThreat("RM -rf src", cwd, files)!, /a\.ts/);
 assert.match(agentFileThreat("GIT checkout -- src/a.ts", cwd, files)!, /discard/);
 assert.match(agentFileThreat("git rm src/a.ts", cwd, files)!, /a\.ts/);
+
+// ── heredoc bodies are stdin data — must not trip text rules ──
+const hd = stripHeredocs("cat > /tmp/m.txt <<'EOF'\nfeat: guard for rm + kill\nrm -rf anything\nEOF\necho done");
+assert.ok(!hd.includes("rm + kill") && !hd.includes("rm -rf anything")); // body blanked
+assert.ok(hd.includes("cat > /tmp/m.txt") && hd.includes("echo done")); // outer cmd kept
+assert.equal(stripHeredocs("rm -rf src/a.ts"), "rm -rf src/a.ts"); // real rm untouched
 
 console.log("danger-guard agent-file checks: OK");

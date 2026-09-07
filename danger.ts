@@ -369,6 +369,27 @@ function isAgentDescendant(pid: number): boolean {
   return false;
 }
 
+// Blank out heredoc bodies (<<EOF … EOF). Their content is stdin data, never
+// executed by the shell — but text rules match the raw string, so a commit
+// message mentioning "rm" would otherwise trip the delete rule.
+// ponytail: inline quoted strings are NOT masked here — `bash -c "rm -rf x"`
+// executes its quoted arg, so masking those would hide real danger.
+export function stripHeredocs(cmd: string): string {
+  let delim: string | null = null;
+  return cmd
+    .split("\n")
+    .map((ln) => {
+      if (delim) {
+        if (ln.trim() === delim) delim = null;
+        return "";
+      }
+      const m = /<<-?\s*(?:'([A-Za-z_][A-Za-z0-9_]*)'|"([A-Za-z_][A-Za-z0-9_]*)"|([A-Za-z_][A-Za-z0-9_]*))/.exec(ln);
+      if (m) delim = m[1] ?? m[2] ?? m[3]!;
+      return ln;
+    })
+    .join("\n");
+}
+
 // ─── Matching ───────────────────────────────────────────────────────────────
 
 function matchBash(cmd: string, rules: PatternRule[]): PatternRule | null {
@@ -428,7 +449,7 @@ export function initDangerGuard(pi: ExtensionAPI, getMode: () => AgentMode): voi
     // wrote/edited this session. Escalate those to a real prompt — unless the
     // configured rule already hard-blocks (rm -rf / must stay a silent block,
     // never a dialog that could be mis-clicked past).
-    const staticRule = matchBash(command, cfg.bashRules);
+    const staticRule = matchBash(stripHeredocs(command), cfg.bashRules);
     const hardBlocked = staticRule !== null && staticRule.level === "block";
     if (!hardBlocked) {
       // kill family: signalling a process the agent itself spawned is routine
