@@ -88,6 +88,22 @@ pi-modes ships with the danger guard formerly published as `pi-danger-guard` —
 - **plan** — no prompts (plan mode already blocks edit/write and destructive bash); block still applies
 - **auto / edit / ask** — full guard behavior
 
+### Agent-file protection
+
+Pattern rules match *text*, not targets — so if you demote `rm` to `warn` in the
+config, an `rm` aimed at a file the agent itself wrote/edited this session would
+pass silently. To close that gap, commands that would destroy the agent's own
+session files always prompt (`rm` of those paths, `git checkout` / `git restore`
+reverting them, `git clean -f` deleting untracked new files) — even with `rm`
+demoted. Hard blocks (`rm -rf /`, disk writes…) are never turned into dialogs.
+
+`kill` is handled the same way, inverted: signalling a process the agent
+itself spawned this session (checked via the ppid chain back to pi) is
+routine cleanup and runs silently, while unowned PIDs, `pkill` / `killall`,
+process groups and shell-expanded targets (`kill $PID`) still prompt.
+
+[17 more lines in file. Use offset=90 to continue.]
+
 ### Config
 
 Override defaults with `~/.config/agent-hud/danger-guard.jsonc` (path kept for backward compatibility with `pi-danger-guard`):

@@ -4,6 +4,7 @@
   "description": "Claude Code-style mode switching for pi — Auto / Plan / Edit / Ask with intelligent context injection + built-in danger guard",
   "keywords": ["pi-package", "pi", "mode", "plan", "edit", "auto", "security", "guard", "permission"],
   "license": "MIT",
+  "scripts": { "test": "node --experimental-strip-types tests/danger-guard.test.ts" },
   "pi": {
     "extensions": ["./index.ts"]
   },
